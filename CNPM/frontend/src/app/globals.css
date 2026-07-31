@@ -1,0 +1,151 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --primary: #2563eb; /* Blue 600 */
+    --primary-hover: #1d4ed8; /* Blue 700 */
+    --primary-light: #dbeafe; /* Blue 100 */
+
+    --secondary: #14b8a6; /* Teal 500 */
+    --secondary-hover: #0d9488;
+    --secondary-light: #ccfbf1;
+
+    --success: #22c55e; /* Green 500 */
+    --warning: #f59e0b; /* Amber 500 */
+    --danger: #ef4444; /* Red 500 */
+    --info: #0ea5e9; /* Sky 500 */
+
+    --bg-body: #f8fafc;
+    --bg-surface: #ffffff;
+    --bg-surface-subtle: #f1f5f9;
+    --border-color: #e2e8f0;
+
+    --text-main: #0f172a;
+    --text-muted: #64748b;
+    --text-inverse: #ffffff;
+
+    --radius-card: 12px;
+    --radius-btn: 8px;
+    --radius-dialog: 16px;
+    --radius-input: 8px;
+  }
+
+  .dark {
+    --bg-body: #0f172a;
+    --bg-surface: #1e293b;
+    --bg-surface-subtle: #334155;
+    --border-color: #334155;
+
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+
+    --primary-light: #1e3a8a55;
+    --secondary-light: #134e4a55;
+  }
+}
+
+body {
+  background-color: var(--bg-body);
+  color: var(--text-main);
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Tabular Nums for clinical alignment */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Technical Medical Grid Background Pattern */
+.bg-medical-grid {
+  background-color: #f8fafc;
+  background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.dark .bg-medical-grid {
+  background-color: #090d16;
+  background-image: radial-gradient(#1e293b 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Glassmorphism & Modern Card Effects */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.dark .glass-panel {
+  background: rgba(17, 24, 39, 0.88);
+  border: 1px solid rgba(31, 41, 55, 0.8);
+}
+
+.glow-sky {
+  box-shadow: 0 8px 30px -4px rgba(14, 165, 233, 0.25);
+}
+
+.glow-emerald {
+  box-shadow: 0 8px 30px -4px rgba(16, 185, 129, 0.25);
+}
+
+.glow-rose {
+  box-shadow: 0 8px 30px -4px rgba(225, 29, 72, 0.25);
+}
+
+.glow-amber {
+  box-shadow: 0 8px 30px -4px rgba(245, 158, 11, 0.25);
+}
+
+.card-hover-effect {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-hover-effect:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.08);
+}
+
+.dark .card-hover-effect:hover {
+  box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.4);
+}
+
+/* Custom Heartbeat Pulse Animation */
+@keyframes heartbeat {
+  0% { transform: scale(1); }
+  14% { transform: scale(1.15); }
+  28% { transform: scale(1); }
+  42% { transform: scale(1.15); }
+  70% { transform: scale(1); }
+}
+
+.animate-heartbeat {
+  animation: heartbeat 2s infinite ease-in-out;
+}

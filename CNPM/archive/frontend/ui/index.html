@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Medisafe Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-icon">💊</div>
+          <div>
+            <h1>Medisafe</h1>
+            <p>Medication Care</p>
+          </div>
+        </div>
+        <nav class="nav-links">
+          <button class="nav-link active" data-view="overview">Tổng quan</button>
+          <button class="nav-link" data-view="medications">Thuốc</button>
+          <button class="nav-link" data-view="schedules">Lịch uống</button>
+          <button class="nav-link" data-view="logs">Nhật ký</button>
+          <button class="nav-link" data-view="stats">Thống kê</button>
+        </nav>
+      </aside>
+
+      <main class="main-panel">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Dashboard</p>
+            <h2 id="pageTitle">Tổng quan</h2>
+          </div>
+          <div class="topbar-actions">
+            <div class="status-chip">● Backend online</div>
+          </div>
+        </header>
+
+        <section id="overview" class="view active">
+          <div class="hero-card">
+            <div>
+              <p class="eyebrow">Hệ thống quản lý thuốc</p>
+              <h3>Quản lý lịch uống thuốc một cách hiện đại và dễ dàng.</h3>
+              <p>Giao diện được thiết kế để hỗ trợ theo dõi thuốc, lịch uống và tỉ lệ tuân thủ.</p>
+            </div>
+            <button class="primary-btn" id="openMedicationForm">Thêm thuốc mới</button>
+          </div>
+          <div class="stats-grid">
+            <article class="card stat-card">
+              <p class="card-label">Tổng thuốc</p>
+              <h3 id="totalMedicationCount">0</h3>
+            </article>
+            <article class="card stat-card">
+              <p class="card-label">Tỷ lệ tuân thủ</p>
+              <h3 id="complianceScore">0%</h3>
+            </article>
+            <article class="card stat-card">
+              <p class="card-label">Lịch hôm nay</p>
+              <h3 id="scheduleCount">0</h3>
+            </article>
+          </div>
+        </section>
+
+        <section id="medications" class="view">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Quản lý thuốc</p>
+              <h3>Danh sách thuốc</h3>
+            </div>
+            <button class="primary-btn" id="openMedicationModal">+ Thêm thuốc</button>
+          </div>
+
+          <div class="card">
+            <form id="medicationForm" class="form-grid">
+              <input type="text" id="medName" placeholder="Tên thuốc" required />
+              <input type="text" id="medForm" placeholder="Dạng bào chế" required />
+              <input type="text" id="medDosage" placeholder="Liều lượng" required />
+              <input type="number" id="medStock" placeholder="Tồn kho" min="0" step="0.1" required />
+              <button class="primary-btn" type="submit">Lưu thuốc</button>
+            </form>
+          </div>
+
+          <div id="medicationList" class="card-list"></div>
+        </section>
+
+        <section id="schedules" class="view">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Quản lý lịch uống</p>
+              <h3>Thiết lập lịch</h3>
+            </div>
+          </div>
+          <div class="card">
+            <form id="scheduleForm" class="form-grid">
+              <input type="number" id="scheduleMedicationId" placeholder="ID thuốc" required />
+              <input type="text" id="scheduleFrequency" placeholder="Tần suất" required />
+              <input type="text" id="scheduleTime" placeholder="Giờ uống (HH:MM)" required />
+              <button class="primary-btn" type="submit">Lưu lịch</button>
+            </form>
+          </div>
+          <div id="scheduleList" class="card-list"></div>
+        </section>
+
+        <section id="logs" class="view">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Nhật ký</p>
+              <h3>Ghi nhận hành động</h3>
+            </div>
+          </div>
+          <div class="card">
+            <form id="logForm" class="form-grid">
+              <input type="number" id="logScheduleId" placeholder="ID lịch uống" required />
+              <select id="logStatus">
+                <option value="Taken">Đã uống</option>
+                <option value="Skipped">Bỏ lỡ</option>
+                <option value="Snoozed">Tạm hoãn</option>
+              </select>
+              <button class="primary-btn" type="submit">Ghi nhận</button>
+            </form>
+          </div>
+          <div id="logList" class="card-list"></div>
+        </section>
+
+        <section id="stats" class="view">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Thống kê</p>
+              <h3>Tuân thủ trong 7 ngày</h3>
+            </div>
+          </div>
+          <div class="card">
+            <div class="progress-row">
+              <span>Đã uống</span>
+              <strong id="takenPercent">0%</strong>
+            </div>
+            <div class="progress-bar"><div id="takenBar" class="bar taken"></div></div>
+            <div class="progress-row">
+              <span>Bỏ qua</span>
+              <strong id="skippedPercent">0%</strong>
+            </div>
+            <div class="progress-bar"><div id="skippedBar" class="bar skipped"></div></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="toast" class="toast"></div>
+    <script src="app.js"></script>
+  </body>
+</html>

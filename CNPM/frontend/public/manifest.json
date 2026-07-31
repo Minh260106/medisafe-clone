@@ -1,0 +1,21 @@
+{
+  "name": "MediSafe Healthcare App",
+  "short_name": "MediSafe",
+  "description": "Ứng dụng nhắc nhở và quản lý uống thuốc cá nhân thông minh",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0284c7",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

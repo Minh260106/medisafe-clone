@@ -1,0 +1,14 @@
+# Môi trường ảo
+.venv/
+venv/
+env/
+
+# Database cục bộ
+*.db
+*.sqlite3
+
+# Môi trường và bảo mật
+.env
+.idea/
+__pycache__/
+*.pyc
