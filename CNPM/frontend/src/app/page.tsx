@@ -1,3 +1,6 @@
+/**
+ * FE-01: Responsive Landing Page matching UI reference
+ */
 import React from 'react';
 import Link from 'next/link';
 import {
