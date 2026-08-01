@@ -16,6 +16,9 @@ export interface PaginatedResponse<T> {
 }
 
 // --- Auth DTOs ---
+/**
+ * FE-06: REST API DTO Interfaces & Service Typings for Backend Integration
+ */
 export interface LoginRequest {
   username: string;
   password: string;
