@@ -1,3 +1,6 @@
+/**
+ * FE-04: Mock Service Fixtures & Delay Simulation
+ */
 import { subDays } from 'date-fns';
 import { ComplianceStats, IntakeLog, IntakeStatus, Medication, Schedule } from '@/types';
 import { NotificationResponse, VitalTrendPoint, DailyTrendPoint, UserProfileResponse } from '@/types/api';
