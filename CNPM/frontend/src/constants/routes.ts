@@ -1,3 +1,6 @@
+/**
+ * FE-07: Standardized Application Routes Registry
+ */
 export const ROUTES = {
   HOME: '/',
   FEATURES: '/features',
