@@ -1,3 +1,6 @@
+/**
+ * FE-03: Enhance Auth UX with Realtime Zod Validation & Back-to-Home Navigation
+ */
 'use client';
 
 import React, { useState } from 'react';
