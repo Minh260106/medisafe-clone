@@ -1,3 +1,6 @@
+/**
+ * FE-05: Accessible Confirm Dialog Component with ARIA
+ */
 'use client';
 
 import React, { useEffect } from 'react';
