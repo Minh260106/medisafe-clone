@@ -1,5 +1,8 @@
 'use client';
 
+/**
+ * FE-02: Separate Features Page with dedicated navigation
+ */
 import React from 'react';
 import Link from 'next/link';
 import {
