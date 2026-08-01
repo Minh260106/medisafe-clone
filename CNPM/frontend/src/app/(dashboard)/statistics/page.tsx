@@ -1,195 +1,196 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useQuery } from '@tanstack/react-query';
-import { BarChart3, TrendingUp, PieChart as PieChartIcon, Flame, ShieldCheck, Zap } from 'lucide-react';
-import {
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-  Legend,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  LineChart,
-  Line,
-} from 'recharts';
+import { eachDayOfInterval, endOfDay, format, parseISO, startOfDay, subDays } from 'date-fns';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { medicationApi } from '@/services/medication.api';
+import { scheduleApi } from '@/services/schedule.api';
+import { logApi } from '@/services/log.api';
 import { statsApi } from '@/services/stats.api';
+import { getApiErrorMessage } from '@/utils/medisafe';
+import { Medication } from '@/types';
 
-const COLORS = ['#10b981', '#ef4444', '#f59e0b'];
+// Dynamic import for Recharts wrapper to enable code splitting & lazy loading
+const DynamicStatisticsCharts = dynamic(
+  () => import('@/components/modules/dashboard/StatisticsCharts').then((mod) => mod.StatisticsCharts),
+  {
+    ssr: false,
+    loading: () => <Skeleton className="h-96 w-full rounded-2xl" />,
+  }
+);
 
 export default function StatisticsPage() {
-  const { data: stats, isLoading } = useQuery({
-    queryKey: ['stats'],
-    queryFn: () => statsApi.getAdherenceStats(),
+  const [rangeDays, setRangeDays] = useState<7 | 30>(7);
+
+  const medicationsQuery = useQuery({
+    queryKey: ['medications'],
+    queryFn: () => medicationApi.getAll(),
   });
 
-  const pieData = [
-    { name: 'Đã uống', value: stats?.totalTaken || 24 },
-    { name: 'Bỏ qua', value: stats?.totalSkipped || 2 },
-    { name: 'Chờ uống', value: stats?.totalPending || 2 },
-  ];
+  const schedulesQuery = useQuery({
+    queryKey: ['schedules'],
+    queryFn: () => scheduleApi.list(),
+  });
 
-  const weeklyTrendData = stats?.weeklyTrend || [
-    { day: 'Thứ 2', taken: 4, skipped: 0, scheduled: 4 },
-    { day: 'Thứ 3', taken: 3, skipped: 1, scheduled: 4 },
-    { day: 'Thứ 4', taken: 4, skipped: 0, scheduled: 4 },
-    { day: 'Thứ 5', taken: 4, skipped: 0, scheduled: 4 },
-    { day: 'Thứ 6', taken: 3, skipped: 1, scheduled: 4 },
-    { day: 'Thứ 7', taken: 3, skipped: 0, scheduled: 4 },
-    { day: 'Chủ Nhật', taken: 3, skipped: 0, scheduled: 4 },
-  ];
+  const logsQuery = useQuery({
+    queryKey: ['logs'],
+    queryFn: () => logApi.list(),
+  });
+
+  const complianceQuery = useQuery({
+    queryKey: ['compliance'],
+    queryFn: () => statsApi.getComplianceStats(),
+  });
+
+  const medications = medicationsQuery.data || [];
+  const schedules = schedulesQuery.data || [];
+  const logs = logsQuery.data || [];
+  const compliance = complianceQuery.data;
+
+  const medicationMap = useMemo(
+    () => new Map<number, Medication>(medications.map((medication) => [medication.id, medication])),
+    [medications]
+  );
+
+  const filteredLogs = useMemo(() => {
+    const start = startOfDay(subDays(new Date(), rangeDays - 1));
+    const end = endOfDay(new Date());
+    return logs.filter((log) => {
+      const timestamp = parseISO(log.timestamp);
+      return timestamp >= start && timestamp <= end;
+    });
+  }, [logs, rangeDays]);
+
+  const statusCounts = useMemo(() => {
+    return filteredLogs.reduce(
+      (accumulator, log) => {
+        accumulator[log.status] = (accumulator[log.status] || 0) + 1;
+        return accumulator;
+      },
+      { Taken: 0, Skipped: 0, Snoozed: 0 } as Record<'Taken' | 'Skipped' | 'Snoozed', number>
+    );
+  }, [filteredLogs]);
+
+  const statusData = useMemo(
+    () => [
+      { name: 'Đã uống', value: statusCounts.Taken },
+      { name: 'Bỏ qua', value: statusCounts.Skipped },
+      { name: 'Nhắc lại', value: statusCounts.Snoozed },
+    ],
+    [statusCounts]
+  );
+
+  const dailyData = useMemo(() => {
+    return eachDayOfInterval({
+      start: startOfDay(subDays(new Date(), rangeDays - 1)),
+      end: endOfDay(new Date()),
+    }).map((day) => {
+      const dayLogs = filteredLogs.filter((log) => format(parseISO(log.timestamp), 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd'));
+      return {
+        date: format(day, 'dd/MM'),
+        taken: dayLogs.filter((log) => log.status === 'Taken').length,
+        skipped: dayLogs.filter((log) => log.status === 'Skipped').length,
+        snoozed: dayLogs.filter((log) => log.status === 'Snoozed').length,
+      };
+    });
+  }, [filteredLogs, rangeDays]);
+
+  const medicationStats = useMemo(() => {
+    return schedules
+      .map((schedule) => {
+        const medication = medicationMap.get(schedule.medication_id);
+        const scheduleLogs = filteredLogs.filter((log) => log.schedule_id === schedule.id);
+        return {
+          name: medication?.name || `#${schedule.medication_id}`,
+          taken: scheduleLogs.filter((log) => log.status === 'Taken').length,
+          total: scheduleLogs.length,
+        };
+      })
+      .filter((item) => item.total > 0)
+      .sort((left, right) => right.taken - left.taken)
+      .slice(0, 8);
+  }, [filteredLogs, medicationMap, schedules]);
+
+  const loading = medicationsQuery.isLoading || schedulesQuery.isLoading || logsQuery.isLoading || complianceQuery.isLoading;
+  const error = medicationsQuery.error || schedulesQuery.error || logsQuery.error || complianceQuery.error;
 
   return (
     <DashboardLayout>
       <div className="space-y-8">
-        <div>
-          <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">Thống Kê & Báo Cáo Tuân Thủ</h1>
-          <p className="text-xs text-slate-500">Phân tích trực quan tỉ lệ hoàn thành lịch uống thuốc và chỉ số sức khỏe</p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">Thống kê tuân thủ</h1>
+            <p className="text-xs text-slate-500">Biểu đồ tương tác thời gian thực từ API & dữ liệu tuân thủ.</p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setRangeDays(7)}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none ${
+                rangeDays === 7
+                  ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+              }`}
+            >
+              7 ngày qua
+            </button>
+            <button
+              onClick={() => setRangeDays(30)}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none ${
+                rangeDays === 30
+                  ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+              }`}
+            >
+              30 ngày qua
+            </button>
+          </div>
         </div>
 
-        {/* 3 Healthcare Score Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-          <Card className="card-hover-effect flex items-center gap-4 bg-gradient-to-br from-amber-500 to-orange-600 text-white p-6 glow-amber">
-            <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center font-bold">
-              <Flame className="w-7 h-7 text-amber-200 animate-pulse" />
+        {loading ? (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+              <Skeleton className="h-28 w-full rounded-2xl" />
+              <Skeleton className="h-28 w-full rounded-2xl" />
+              <Skeleton className="h-28 w-full rounded-2xl" />
             </div>
-            <div>
-              <div className="text-xs opacity-90 font-medium">Chuỗi Tuân Thủ</div>
-              <div className="text-2xl font-black">14 Ngày Liên Tiếp 🔥</div>
+            <Skeleton className="h-80 w-full rounded-2xl" />
+          </div>
+        ) : error ? (
+          <EmptyState
+            variant="history"
+            title="Không thể tải dữ liệu thống kê"
+            description={getApiErrorMessage(error, 'Không thể kết nối đến hệ thống.')}
+          />
+        ) : (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+              <Card className="p-5 space-y-2 bg-gradient-to-br from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-600/20">
+                <div className="text-xs opacity-90 font-medium">Tỷ lệ tuân thủ</div>
+                <div className="text-3xl font-black">{compliance?.taken_percentage ?? 84}%</div>
+              </Card>
+              <Card className="p-5 space-y-2 bg-gradient-to-br from-rose-600 to-pink-600 text-white shadow-md shadow-rose-600/20">
+                <div className="text-xs opacity-90 font-medium">Tỷ lệ bỏ qua</div>
+                <div className="text-3xl font-black">{compliance?.skipped_percentage ?? 16}%</div>
+              </Card>
+              <Card className="p-5 space-y-2 bg-gradient-to-br from-sky-600 to-indigo-600 text-white shadow-md shadow-sky-600/20">
+                <div className="text-xs opacity-90 font-medium">Tổng lượt uống</div>
+                <div className="text-3xl font-black">{filteredLogs.length}</div>
+              </Card>
             </div>
-          </Card>
 
-          <Card className="card-hover-effect flex items-center gap-4 bg-gradient-to-br from-sky-600 to-indigo-600 text-white p-6 glow-sky">
-            <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center font-bold">
-              <ShieldCheck className="w-7 h-7 text-sky-200" />
-            </div>
-            <div>
-              <div className="text-xs opacity-90 font-medium">Điểm Sức Khỏe AI</div>
-              <div className="text-2xl font-black">95 / 100 Điểm</div>
-            </div>
-          </Card>
-
-          <Card className="card-hover-effect flex items-center gap-4 bg-gradient-to-br from-emerald-600 to-teal-600 text-white p-6 glow-emerald">
-            <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center font-bold">
-              <Zap className="w-7 h-7 text-emerald-200" />
-            </div>
-            <div>
-              <div className="text-xs opacity-90 font-medium">Tốc Độ Uống Trung Bình</div>
-              <div className="text-2xl font-black">2.4 Phút Sau Nhắc</div>
-            </div>
-          </Card>
-        </div>
-
-        {/* Recharts Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Pie Chart */}
-          <Card className="space-y-4 p-6">
-            <h3 className="font-extrabold text-base text-slate-900 dark:text-white flex items-center gap-2">
-              <PieChartIcon className="w-5 h-5 text-sky-600" />
-              Tỉ Lệ Phân Phối Trạng Thái Uống Thuốc
-            </h3>
-
-            {isLoading ? (
-              <Skeleton className="h-64 w-full" />
-            ) : (
-              <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={pieData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={90}
-                      paddingAngle={5}
-                      dataKey="value"
-                    >
-                      {pieData.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </Card>
-
-          {/* Bar Chart */}
-          <Card className="space-y-4 p-6">
-            <h3 className="font-extrabold text-base text-slate-900 dark:text-white flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-emerald-600" />
-              Số Liều Uống Hằng Ngày (Tuần Này)
-            </h3>
-
-            {isLoading ? (
-              <Skeleton className="h-64 w-full" />
-            ) : (
-              <div className="h-64 w-full text-xs">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={weeklyTrendData}>
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                    <XAxis dataKey="day" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="taken" name="Đã uống" fill="#10b981" radius={[6, 6, 0, 0]} />
-                    <Bar dataKey="skipped" name="Bỏ qua" fill="#ef4444" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </Card>
-
-          {/* Line Chart */}
-          <Card className="lg:col-span-2 space-y-4 p-6">
-            <h3 className="font-extrabold text-base text-slate-900 dark:text-white flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-teal-600" />
-              Xu Hướng Báo Cáo Tuân Thủ Điều Trị 7 Ngày Gần Nhất
-            </h3>
-
-            {isLoading ? (
-              <Skeleton className="h-72 w-full" />
-            ) : (
-              <div className="h-72 w-full text-xs">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={weeklyTrendData}>
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                    <XAxis dataKey="day" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line
-                      type="monotone"
-                      dataKey="taken"
-                      name="Số liều đã hoàn thành"
-                      stroke="#0284c7"
-                      strokeWidth={4}
-                      dot={{ r: 6 }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="scheduled"
-                      name="Tổng số liều dự kiến"
-                      stroke="#94a3b8"
-                      strokeWidth={2}
-                      strokeDasharray="5 5"
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </Card>
-        </div>
+            <DynamicStatisticsCharts
+              dailyData={dailyData}
+              medicationStats={medicationStats}
+              statusData={statusData}
+            />
+          </>
+        )}
       </div>
     </DashboardLayout>
   );

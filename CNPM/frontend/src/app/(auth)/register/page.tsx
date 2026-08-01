@@ -6,16 +6,15 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Pill, Mail, Lock, User as UserIcon, AlertCircle } from 'lucide-react';
+import { Pill, Mail, Lock, User as UserIcon, AlertCircle, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { authApi } from '@/services/auth.api';
-import { useAuthStore } from '@/store/useAuthStore';
 import { ROUTES } from '@/constants/routes';
 
 const registerSchema = z
   .object({
-    fullName: z.string().min(2, 'Họ và tên phải ít nhất 2 ký tự'),
+    username: z.string().min(3, 'Username phải ít nhất 3 ký tự'),
     email: z.string().min(1, 'Vui lòng nhập Email').email('Email không hợp lệ'),
     password: z.string().min(8, 'Mật khẩu phải chứa ít nhất 8 ký tự'),
     confirmPassword: z.string().min(8, 'Xác nhận mật khẩu ít nhất 8 ký tự'),
@@ -32,8 +31,8 @@ type RegisterFormValues = z.infer<typeof registerSchema>;
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { setAuth } = useAuthStore();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const {
@@ -50,16 +49,18 @@ export default function RegisterPage() {
   const onSubmit = async (data: RegisterFormValues) => {
     setLoading(true);
     setErrorMessage(null);
+    setSuccessMessage(null);
     try {
-      const result = await authApi.register({
-        fullName: data.fullName,
+      await authApi.register({
+        username: data.username,
         email: data.email,
         password: data.password,
+        confirm_password: data.confirmPassword,
       });
-      setAuth(result.user, result.token);
-      router.push(ROUTES.DASHBOARD.OVERVIEW);
-    } catch {
-      setErrorMessage('Đăng ký thất bại. Email có thể đã tồn tại.');
+      setSuccessMessage('Đăng ký thành công. Hãy đăng nhập bằng tài khoản vừa tạo.');
+      router.push(ROUTES.AUTH.LOGIN);
+    } catch (error) {
+      setErrorMessage((error as { message?: string })?.message || 'Đăng ký thất bại. Username hoặc email có thể đã tồn tại.');
     } finally {
       setLoading(false);
     }
@@ -68,6 +69,17 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50 dark:bg-slate-900">
       <div className="w-full max-w-md bg-white dark:bg-slate-800 rounded-3xl shadow-xl border border-slate-200/80 dark:border-slate-700/80 p-8 space-y-6">
+        {/* Back to Home Button */}
+        <div>
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-750 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950/60 dark:hover:text-blue-400 transition-all"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Quay lại trang chủ</span>
+          </Link>
+        </div>
+
         {/* Header */}
         <div className="text-center space-y-2">
           <div className="w-14 h-14 rounded-2xl bg-blue-600 text-white flex items-center justify-center mx-auto shadow-lg shadow-blue-600/30">
@@ -87,15 +99,21 @@ export default function RegisterPage() {
           </div>
         )}
 
+        {successMessage && (
+          <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-900 text-emerald-700 dark:text-emerald-300 text-xs flex items-center gap-2.5">
+            <span>{successMessage}</span>
+          </div>
+        )}
+
         {/* Form */}
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <Input
-            label="Họ và Tên"
+            label="Username"
             type="text"
-            placeholder="Nguyễn Văn A"
+            placeholder="nguyenvana"
             leftIcon={<UserIcon className="w-4 h-4 text-slate-400" />}
-            error={errors.fullName?.message}
-            {...register('fullName')}
+            error={errors.username?.message}
+            {...register('username')}
           />
 
           <Input

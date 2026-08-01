@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import QueryProvider from '@/providers/QueryProvider';
+import { AppProviders } from '@/providers/AppProviders';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -32,9 +32,9 @@ export default function RootLayout({
   return (
     <html lang="vi" className="h-full">
       <body className="h-full antialiased bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 selection:bg-sky-500 selection:text-white">
-        <QueryProvider>
+        <AppProviders>
           {children}
-        </QueryProvider>
+        </AppProviders>
       </body>
     </html>
   );

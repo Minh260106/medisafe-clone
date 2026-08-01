@@ -6,6 +6,8 @@ export interface ToastMessage {
   title: string;
   description?: string;
   duration?: number;
+  actionLabel?: string;
+  onAction?: () => void;
 }
 
 interface ToastState {

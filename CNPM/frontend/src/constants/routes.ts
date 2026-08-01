@@ -1,5 +1,7 @@
 export const ROUTES = {
   HOME: '/',
+  FEATURES: '/features',
+  BENEFITS: '/benefits',
   AUTH: {
     LOGIN: '/login',
     REGISTER: '/register',
@@ -9,6 +11,7 @@ export const ROUTES = {
     OVERVIEW: '/dashboard',
     MEDICATIONS: '/medications',
     SCHEDULE: '/schedule',
+    REMINDER: '/reminder',
     HISTORY: '/history',
     APPOINTMENTS: '/appointments',
     HEALTH_TRACKER: '/health-tracker',

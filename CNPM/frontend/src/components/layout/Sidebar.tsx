@@ -8,15 +8,12 @@ import {
   Pill,
   Calendar,
   History,
-  CalendarDays,
-  Activity,
-  Bell,
   User,
   Settings,
-  X,
   ShieldCheck,
   ChevronLeft,
   ChevronRight,
+  X,
 } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import { ROUTES } from '@/constants/routes';
@@ -24,11 +21,9 @@ import { ROUTES } from '@/constants/routes';
 const navItems = [
   { name: 'Tổng quan', href: ROUTES.DASHBOARD.OVERVIEW, icon: LayoutDashboard },
   { name: 'Danh mục Thuốc', href: ROUTES.DASHBOARD.MEDICATIONS, icon: Pill },
-  { name: 'Lịch & Nhắc nhở', href: ROUTES.DASHBOARD.SCHEDULE, icon: Calendar },
+  { name: 'Lịch Thuốc', href: ROUTES.DASHBOARD.SCHEDULE, icon: Calendar },
+  { name: 'Nhắc nhở hôm nay', href: ROUTES.DASHBOARD.REMINDER, icon: Calendar },
   { name: 'Lịch sử uống thuốc', href: ROUTES.DASHBOARD.HISTORY, icon: History },
-  { name: 'Lịch hẹn khám bệnh', href: ROUTES.DASHBOARD.APPOINTMENTS, icon: CalendarDays },
-  { name: 'Theo dõi Sức khỏe', href: ROUTES.DASHBOARD.HEALTH_TRACKER, icon: Activity },
-  { name: 'Thông báo hệ thống', href: ROUTES.DASHBOARD.NOTIFICATIONS, icon: Bell },
   { name: 'Hồ sơ cá nhân', href: ROUTES.DASHBOARD.PROFILE, icon: User },
   { name: 'Cài đặt hệ thống', href: ROUTES.DASHBOARD.SETTINGS, icon: Settings },
 ];
@@ -40,12 +35,7 @@ export const Sidebar: React.FC = () => {
   return (
     <>
       {/* Mobile Backdrop */}
-      {sidebarOpen && (
-        <div
-          onClick={toggleSidebar}
-          className="lg:hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40"
-        />
-      )}
+      {sidebarOpen && <div onClick={toggleSidebar} className="lg:hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40" />}
 
       {/* Sidebar Container */}
       <aside

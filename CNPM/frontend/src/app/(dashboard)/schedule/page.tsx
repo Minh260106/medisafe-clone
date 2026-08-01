@@ -1,326 +1,330 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  Calendar as CalendarIcon,
-  ChevronLeft,
-  ChevronRight,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  Pill,
-  BellRing,
-  CheckCheck,
-  Sun,
-  Moon,
-  Sunrise,
-} from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { format } from 'date-fns';
+import { CalendarClock, ChevronLeft, ChevronRight, Plus, Search, Trash2 } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
+import { Input } from '@/components/ui/Input';
+import { Modal } from '@/components/ui/Modal';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { scheduleApi } from '@/services/schedule.api';
-import { useAppStore } from '@/store/useAppStore';
-import { DosageStatus } from '@/types';
+import { medicationApi } from '@/services/medication.api';
+import { scheduleApi, SchedulePayload } from '@/services/schedule.api';
+import { downloadCsv, getApiErrorMessage } from '@/utils/medisafe';
+import { Schedule } from '@/types';
+
+type SortMode = 'time-asc' | 'time-desc' | 'updated-desc';
+
+const DEFAULT_FORM: SchedulePayload = {
+  medication_id: 0,
+  frequency: '',
+  time_to_take: '08:00',
+};
 
 export default function SchedulePage() {
   const queryClient = useQueryClient();
-  const { selectedDate, setSelectedDate } = useAppStore();
-  const [timeTab, setTimeTab] = useState<'all' | 'morning' | 'afternoon' | 'evening'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortMode, setSortMode] = useState<SortMode>('time-asc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Schedule | null>(null);
+  const [formData, setFormData] = useState<SchedulePayload>(DEFAULT_FORM);
+  const [formError, setFormError] = useState<string | null>(null);
 
-  // Queries
-  const { data: schedule, isLoading } = useQuery({
-    queryKey: ['schedule', selectedDate],
-    queryFn: () => scheduleApi.getDailySchedule(selectedDate),
+  const medicationsQuery = useQuery({
+    queryKey: ['medications'],
+    queryFn: () => medicationApi.getAll(),
   });
 
-  // Action Mutation with Optimistic Updates
-  const actionMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: DosageStatus }) =>
-      scheduleApi.updateDosageStatus(id, status, selectedDate),
-    onMutate: async ({ id, status }) => {
-      await queryClient.cancelQueries({ queryKey: ['schedule', selectedDate] });
-      const previousSchedule = queryClient.getQueryData(['schedule', selectedDate]);
+  const schedulesQuery = useQuery({
+    queryKey: ['schedules'],
+    queryFn: () => scheduleApi.list(),
+  });
 
-      queryClient.setQueryData(['schedule', selectedDate], (old: any) => {
-        if (!old) return [];
-        return old.map((item: any) =>
-          item.id === id ? { ...item, status, takenAt: status === 'taken' ? new Date().toISOString() : undefined } : item
-        );
-      });
+  const medications = medicationsQuery.data || [];
+  const schedules = schedulesQuery.data || [];
 
-      return { previousSchedule };
-    },
-    onError: (_err, _variables, context) => {
-      if (context?.previousSchedule) {
-        queryClient.setQueryData(['schedule', selectedDate], context.previousSchedule);
+  const medicationMap = useMemo(() => {
+    return new Map(medications.map((medication) => [medication.id, medication]));
+  }, [medications]);
+
+  const filteredSchedules = useMemo(() => {
+    const search = searchQuery.trim().toLowerCase();
+    const items = schedules.filter((schedule) => {
+      const medication = medicationMap.get(schedule.medication_id);
+      const medicationName = medication?.name || `#${schedule.medication_id}`;
+      return (
+        medicationName.toLowerCase().includes(search) ||
+        schedule.frequency.toLowerCase().includes(search) ||
+        schedule.time_to_take.includes(search)
+      );
+    });
+
+    items.sort((left, right) => {
+      switch (sortMode) {
+        case 'time-desc':
+          return right.time_to_take.localeCompare(left.time_to_take);
+        case 'updated-desc':
+          return new Date(right.updated_at).getTime() - new Date(left.updated_at).getTime();
+        case 'time-asc':
+        default:
+          return left.time_to_take.localeCompare(right.time_to_take);
       }
+    });
+
+    return items;
+  }, [medicationMap, schedules, searchQuery, sortMode]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredSchedules.length / 8));
+  const paginatedSchedules = filteredSchedules.slice((currentPage - 1) * 8, currentPage * 8);
+
+  const createMutation = useMutation({
+    mutationFn: (payload: SchedulePayload) => scheduleApi.create(payload),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['schedules'] });
+      setIsFormOpen(false);
+      setEditingSchedule(null);
+      setFormData(DEFAULT_FORM);
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['schedule', selectedDate] });
-      queryClient.invalidateQueries({ queryKey: ['stats'] });
-    },
+    onError: (error) => setFormError(getApiErrorMessage(error, 'Không thể tạo lịch.')),
   });
 
-  // Batch Action: Take All
-  const takeAllMutation = useMutation({
-    mutationFn: async () => {
-      if (!schedule) return;
-      for (const item of filteredSchedule) {
-        if (item.status !== 'taken') {
-          await scheduleApi.updateDosageStatus(item.id, 'taken', selectedDate);
-        }
-      }
+  const updateMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: SchedulePayload }) => scheduleApi.update(id, payload),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['schedules'] });
+      setIsFormOpen(false);
+      setEditingSchedule(null);
+      setFormData(DEFAULT_FORM);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['schedule', selectedDate] });
-      queryClient.invalidateQueries({ queryKey: ['stats'] });
-    },
+    onError: (error) => setFormError(getApiErrorMessage(error, 'Không thể cập nhật lịch.')),
   });
 
-  // Helper for Week Strip (7 Days around selected date)
-  const getWeeklyDays = () => {
-    const current = new Date(selectedDate);
-    const dayOfWeek = current.getDay(); // 0 is Sunday
-    const distanceToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-    const monday = new Date(current);
-    monday.setDate(current.getDate() + distanceToMonday);
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => scheduleApi.delete(id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['schedules'] });
+      await queryClient.invalidateQueries({ queryKey: ['logs'] });
+      setDeleteTarget(null);
+    },
+    onError: (error) => setFormError(getApiErrorMessage(error, 'Không thể xoá lịch.')),
+  });
 
-    const days = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(monday);
-      d.setDate(monday.getDate() + i);
-      const dateStr = d.toISOString().split('T')[0];
-      const dayName = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][d.getDay()];
-      days.push({ dayName, dateStr, dayNum: d.getDate() });
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!formData.medication_id || !formData.frequency.trim() || !formData.time_to_take.trim()) {
+      setFormError('Vui lòng chọn thuốc, nhập tần suất và giờ uống.');
+      return;
     }
-    return days;
+
+    if (editingSchedule) {
+      updateMutation.mutate({ id: editingSchedule.id, payload: formData });
+    } else {
+      createMutation.mutate(formData);
+    }
   };
 
-  const weekDays = getWeeklyDays();
+  const openCreateModal = () => {
+    setEditingSchedule(null);
+    setFormData({ ...DEFAULT_FORM, medication_id: medications[0]?.id || 0 });
+    setFormError(null);
+    setIsFormOpen(true);
+  };
 
-  // Filter Schedule by Time Tab
-  const filteredSchedule = (schedule || []).filter((item) => {
-    if (timeTab === 'all') return true;
-    const hour = parseInt(item.scheduledTime.split(':')[0], 10);
-    if (timeTab === 'morning') return hour >= 5 && hour < 12;
-    if (timeTab === 'afternoon') return hour >= 12 && hour < 17;
-    if (timeTab === 'evening') return hour >= 17 || hour < 5;
-    return true;
-  });
+  const openEditModal = (schedule: Schedule) => {
+    setEditingSchedule(schedule);
+    setFormData({
+      medication_id: schedule.medication_id,
+      frequency: schedule.frequency,
+      time_to_take: schedule.time_to_take,
+    });
+    setFormError(null);
+    setIsFormOpen(true);
+  };
 
-  const changeDate = (days: number) => {
-    const current = new Date(selectedDate);
-    current.setDate(current.getDate() + days);
-    setSelectedDate(current.toISOString().split('T')[0]);
+  const handleExportCsv = () => {
+    downloadCsv(
+      `medisafe-schedules-${new Date().toISOString().slice(0, 10)}.csv`,
+      ['ID', 'Thuốc', 'Tần suất', 'Giờ uống', 'Cập nhật cuối'],
+      filteredSchedules.map((schedule) => [
+        schedule.id,
+        medicationMap.get(schedule.medication_id)?.name || `#${schedule.medication_id}`,
+        schedule.frequency,
+        schedule.time_to_take,
+        format(new Date(schedule.updated_at), 'dd/MM/yyyy HH:mm'),
+      ])
+    );
   };
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Top Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">Lịch & Lời Nhắc Uống Thuốc</h1>
-            <p className="text-xs text-slate-500">Quản lý trực quan toàn bộ các liều thuốc theo từng mốc thời gian</p>
+            <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">Lịch thuốc</h1>
+            <p className="text-xs text-slate-500">Mỗi lịch chỉ có 1 mốc giờ, đúng với backend thật. Muốn nhiều mốc thì tạo nhiều record.</p>
           </div>
 
-          {filteredSchedule.some((s) => s.status !== 'taken') && (
-            <Button
-              variant="secondary"
-              isLoading={takeAllMutation.isPending}
-              onClick={() => takeAllMutation.mutate()}
-              leftIcon={<CheckCheck className="w-4 h-4" />}
-            >
-              Uống nhanh các liều ({filteredSchedule.filter((s) => s.status !== 'taken').length})
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={handleExportCsv}>Xuất CSV</Button>
+            <Button variant="primary" onClick={openCreateModal} leftIcon={<Plus className="w-4 h-4" />}>
+              Thêm lịch
             </Button>
-          )}
+          </div>
         </div>
 
-        {/* Interactive Weekly Calendar Strip */}
-        <Card className="p-4 bg-gradient-to-r from-sky-600 via-sky-500 to-teal-500 text-white rounded-3xl glow-sky shadow-xl">
-          <div className="flex items-center justify-between mb-4 px-2">
-            <div className="flex items-center gap-2 font-bold text-sm">
-              <CalendarIcon className="w-4 h-4" />
-              <span>Tuần: {weekDays[0].dateStr} - {weekDays[6].dateStr}</span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => changeDate(-7)}
-                className="p-1.5 rounded-xl bg-white/20 hover:bg-white/30 transition-colors"
-                title="Tuần trước"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
-                className="px-3 py-1 rounded-xl bg-white/20 text-xs font-bold hover:bg-white/30 transition-colors"
-              >
-                Hôm nay
-              </button>
-              <button
-                onClick={() => changeDate(7)}
-                className="p-1.5 rounded-xl bg-white/20 hover:bg-white/30 transition-colors"
-                title="Tuần sau"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
+        <Card className="p-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="relative w-full lg:max-w-md">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Input
+              placeholder="Tìm theo tên thuốc, tần suất hoặc giờ"
+              value={searchQuery}
+              onChange={(event) => {
+                setCurrentPage(1);
+                setSearchQuery(event.target.value);
+              }}
+              className="pl-10"
+            />
           </div>
 
-          {/* 7 Days Strip */}
-          <div className="grid grid-cols-7 gap-2">
-            {weekDays.map((d) => {
-              const isSelected = d.dateStr === selectedDate;
-              return (
-                <button
-                  key={d.dateStr}
-                  onClick={() => setSelectedDate(d.dateStr)}
-                  className={`flex flex-col items-center justify-center p-3 rounded-2xl transition-all ${
-                    isSelected
-                      ? 'bg-white text-sky-600 font-extrabold shadow-lg scale-105'
-                      : 'bg-white/10 hover:bg-white/20 text-white font-medium'
-                  }`}
-                >
-                  <span className="text-[11px] opacity-80 uppercase">{d.dayName}</span>
-                  <span className="text-lg font-black">{d.dayNum}</span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1" />
-                </button>
-              );
-            })}
-          </div>
+          <select
+            value={sortMode}
+            onChange={(event) => setSortMode(event.target.value as SortMode)}
+            className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs px-3 py-2.5 text-slate-900 dark:text-slate-100"
+          >
+            <option value="time-asc">Giờ tăng dần</option>
+            <option value="time-desc">Giờ giảm dần</option>
+            <option value="updated-desc">Mới cập nhật</option>
+          </select>
         </Card>
 
-        {/* Time-of-Day Filter Tabs */}
-        <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-700 pb-2 overflow-x-auto">
-          <button
-            onClick={() => setTimeTab('all')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
-              timeTab === 'all'
-                ? 'bg-sky-600 text-white shadow-md'
-                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            <Clock className="w-4 h-4" /> Tất cả mốc giờ ({schedule?.length || 0})
-          </button>
-          <button
-            onClick={() => setTimeTab('morning')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
-              timeTab === 'morning'
-                ? 'bg-amber-500 text-white shadow-md'
-                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            <Sunrise className="w-4 h-4" /> Buổi Sáng (05h - 12h)
-          </button>
-          <button
-            onClick={() => setTimeTab('afternoon')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
-              timeTab === 'afternoon'
-                ? 'bg-sky-500 text-white shadow-md'
-                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            <Sun className="w-4 h-4" /> Buổi Trưa (12h - 17h)
-          </button>
-          <button
-            onClick={() => setTimeTab('evening')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
-              timeTab === 'evening'
-                ? 'bg-indigo-600 text-white shadow-md'
-                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            <Moon className="w-4 h-4" /> Buổi Tối & Đêm
-          </button>
-        </div>
-
-        {/* Schedule List */}
-        <Card className="space-y-4 p-6">
-          {isLoading ? (
+        {schedulesQuery.isLoading ? (
+          <div className="space-y-3">
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-24 w-full" />
+          </div>
+        ) : schedulesQuery.error ? (
+          <EmptyState title="Không tải được lịch" description={getApiErrorMessage(schedulesQuery.error, 'Không thể kết nối đến backend.')} />
+        ) : filteredSchedules.length === 0 ? (
+          <EmptyState
+            title="Chưa có lịch nào"
+            description="Tạo lịch đầu tiên để Reminder và History có dữ liệu thật."
+            actionLabel="Thêm lịch"
+            onAction={openCreateModal}
+          />
+        ) : (
+          <div className="space-y-4">
             <div className="space-y-3">
-              <Skeleton className="h-20 w-full" />
-              <Skeleton className="h-20 w-full" />
-            </div>
-          ) : filteredSchedule.length > 0 ? (
-            <div className="space-y-3">
-              {filteredSchedule.map((item) => (
-                <div
-                  key={item.id}
-                  className="card-hover-effect flex flex-col md:flex-row md:items-center justify-between p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 bg-white dark:bg-slate-800 shadow-sm gap-4 hover:border-sky-400"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-600 to-sky-700 text-white flex flex-col items-center justify-center font-black text-sm shadow-md shadow-sky-600/20">
-                      <span>{item.scheduledTime}</span>
-                    </div>
-
+              {paginatedSchedules.map((schedule) => {
+                const medication = medicationMap.get(schedule.medication_id);
+                return (
+                  <Card key={schedule.id} className="p-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-slate-200/80 dark:border-slate-800">
                     <div className="space-y-1">
-                      <div className="flex items-center gap-2.5">
-                        <span className="font-bold text-slate-900 dark:text-white text-lg">
-                          {item.medicationName}
-                        </span>
-                        <Badge
-                          variant={
-                            item.status === 'taken'
-                              ? 'success'
-                              : item.status === 'skipped'
-                              ? 'danger'
-                              : 'warning'
-                          }
-                        >
-                          {item.status === 'taken'
-                            ? 'Đã uống'
-                            : item.status === 'skipped'
-                            ? 'Bỏ qua'
-                            : 'Chờ uống'}
-                        </Badge>
+                      <div className="flex items-center gap-2">
+                        <CalendarClock className="w-4 h-4 text-sky-600" />
+                        <h3 className="font-extrabold text-slate-900 dark:text-white">{medication?.name || `Thuốc #${schedule.medication_id}`}</h3>
                       </div>
-                      <p className="text-xs text-slate-500">
-                        Liều lượng: <strong className="text-slate-700 dark:text-slate-300">{item.dosage} {item.unit}</strong>
-                      </p>
+                      <p className="text-xs text-slate-500">{schedule.frequency}</p>
+                      <p className="text-xs text-slate-500">Giờ uống: <span className="font-semibold text-slate-800 dark:text-slate-200">{schedule.time_to_take}</span></p>
                     </div>
-                  </div>
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 self-end md:self-center">
-                    <Button
-                      size="sm"
-                      variant={item.status === 'taken' ? 'secondary' : 'outline'}
-                      onClick={() => actionMutation.mutate({ id: item.id, status: 'taken' })}
-                      leftIcon={<CheckCircle2 className="w-4 h-4" />}
-                    >
-                      Đã Uống
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={item.status === 'skipped' ? 'danger' : 'outline'}
-                      onClick={() => actionMutation.mutate({ id: item.id, status: 'skipped' })}
-                      leftIcon={<XCircle className="w-4 h-4" />}
-                    >
-                      Bỏ qua
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => actionMutation.mutate({ id: item.id, status: 'snoozed' })}
-                      leftIcon={<BellRing className="w-4 h-4 text-amber-500" />}
-                    >
-                      Nhắc lại 15p
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                    <div className="flex flex-wrap gap-2 self-start md:self-center">
+                      <Button size="sm" variant="outline" onClick={() => openEditModal(schedule)}>Sửa</Button>
+                      <Button size="sm" variant="danger" onClick={() => setDeleteTarget(schedule)} leftIcon={<Trash2 className="w-3.5 h-3.5" />}>
+                        Xoá
+                      </Button>
+                    </div>
+                  </Card>
+                );
+              })}
             </div>
-          ) : (
-            <div className="text-center py-16 space-y-3">
-              <Pill className="w-16 h-16 text-slate-300 mx-auto" />
-              <p className="text-sm font-semibold text-slate-500">Không có lịch uống thuốc nào phù hợp với bộ lọc mốc giờ này.</p>
+
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-xs text-slate-500">
+                Hiển thị {Math.min((currentPage - 1) * 8 + 1, filteredSchedules.length)}-
+                {Math.min(currentPage * 8, filteredSchedules.length)} / {filteredSchedules.length}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={() => setCurrentPage((value) => Math.max(1, value - 1))} leftIcon={<ChevronLeft className="w-4 h-4" />}>
+                  Trước
+                </Button>
+                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                  {currentPage} / {totalPages}
+                </span>
+                <Button size="sm" variant="outline" onClick={() => setCurrentPage((value) => Math.min(totalPages, value + 1))} rightIcon={<ChevronRight className="w-4 h-4" />}>
+                  Sau
+                </Button>
+              </div>
             </div>
-          )}
-        </Card>
+          </div>
+        )}
+
+        <Modal
+          isOpen={isFormOpen}
+          onClose={() => setIsFormOpen(false)}
+          title={editingSchedule ? 'Chỉnh sửa lịch' : 'Thêm lịch mới'}
+          description="Dữ liệu sẽ được lưu thật vào /api/schedules."
+          maxWidth="md"
+        >
+          <form className="space-y-4" onSubmit={handleSubmit}>
+            {formError && <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">{formError}</div>}
+            <div className="space-y-1.5">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Thuốc</label>
+              <select
+                value={formData.medication_id}
+                onChange={(event) => setFormData((current) => ({ ...current, medication_id: Number(event.target.value) }))}
+                className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100 p-3 outline-none"
+              >
+                <option value={0}>-- Chọn thuốc --</option>
+                {medications.map((medication) => (
+                  <option key={medication.id} value={medication.id}>
+                    {medication.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <Input
+              label="Tần suất"
+              value={formData.frequency}
+              onChange={(event) => setFormData((current) => ({ ...current, frequency: event.target.value }))}
+              placeholder="Ví dụ: 2 lần/ngày sau ăn"
+              required
+            />
+
+            <Input
+              label="Giờ uống"
+              type="time"
+              value={formData.time_to_take}
+              onChange={(event) => setFormData((current) => ({ ...current, time_to_take: event.target.value }))}
+              required
+            />
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>
+                Huỷ
+              </Button>
+              <Button type="submit" variant="primary" isLoading={createMutation.isPending || updateMutation.isPending}>
+                {editingSchedule ? 'Lưu thay đổi' : 'Tạo lịch'}
+              </Button>
+            </div>
+          </form>
+        </Modal>
+
+        <ConfirmDialog
+          isOpen={!!deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+          title="Xoá lịch"
+          message="Xoá lịch sẽ ảnh hưởng trực tiếp tới Reminder và History."
+          isLoading={deleteMutation.isPending}
+        />
       </div>
     </DashboardLayout>
   );

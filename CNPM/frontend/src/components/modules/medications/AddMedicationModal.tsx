@@ -29,7 +29,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { PILL_SHAPES, PILL_COLORS, DOSAGE_UNITS } from '@/constants/theme';
-import { Medication, PillShape } from '@/types';
+import { Medication, PillShape } from '@/types/legacy';
 
 export interface AddMedicationModalProps {
   isOpen: boolean;
@@ -197,17 +197,19 @@ export const AddMedicationModal: React.FC<AddMedicationModalProps> = ({
       <div className="space-y-6">
         {/* Step Indicator Header */}
         <div className="bg-slate-100 dark:bg-slate-750 p-2 rounded-2xl flex items-center justify-between gap-1">
-          {[
-            { num: 1, title: 'Thông tin & Liều' },
-            { num: 2, title: 'Nhận diện thị giác' },
-            { num: 3, title: 'Lịch nhắc nhở' },
-            { num: 4, title: 'Quản lý kho' },
-          ].map((s) => (
+          {(
+            [
+              { num: 1 as const, title: 'Thông tin & Liều' },
+              { num: 2 as const, title: 'Nhận diện thị giác' },
+              { num: 3 as const, title: 'Lịch nhắc nhở' },
+              { num: 4 as const, title: 'Quản lý kho' },
+            ] as const
+          ).map((s) => (
             <button
               key={s.num}
               type="button"
               onClick={() => {
-                if (s.num === 1 || canProceedStep1) setStep(s.num as any);
+                if (s.num === 1 || canProceedStep1) setStep(s.num);
               }}
               className={`flex-1 py-2 px-1 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all ${
                 step === s.num
@@ -681,7 +683,7 @@ export const AddMedicationModal: React.FC<AddMedicationModalProps> = ({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setStep((step - 1) as any)}
+                onClick={() => setStep((prev) => (prev > 1 ? ((prev - 1) as 1 | 2 | 3 | 4) : 1))}
                 leftIcon={<ChevronLeft className="w-4 h-4" />}
               >
                 Quay lại
@@ -697,7 +699,7 @@ export const AddMedicationModal: React.FC<AddMedicationModalProps> = ({
                 type="button"
                 variant="primary"
                 disabled={!canProceedStep1}
-                onClick={() => setStep((step + 1) as any)}
+                onClick={() => setStep((prev) => (prev < 4 ? ((prev + 1) as 1 | 2 | 3 | 4) : 4))}
                 rightIcon={<ChevronRight className="w-4 h-4" />}
               >
                 Tiếp theo: {step === 1 ? 'Nhận diện thị giác' : step === 2 ? 'Lịch nhắc nhở' : 'Quản lý kho'}

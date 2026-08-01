@@ -45,6 +45,17 @@ export default function ForgotPasswordPage() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-sky-50 via-slate-50 to-emerald-50 dark:from-slate-900 dark:via-slate-850 dark:to-slate-900">
       <div className="w-full max-w-md bg-white dark:bg-slate-800 rounded-3xl shadow-xl border border-slate-200/80 dark:border-slate-700/80 p-8 space-y-6">
+        {/* Back to Home Button */}
+        <div>
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-750 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950/60 dark:hover:text-blue-400 transition-all"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Quay lại trang chủ</span>
+          </Link>
+        </div>
+
         <div className="text-center space-y-2">
           <div className="w-14 h-14 rounded-2xl bg-sky-600 text-white flex items-center justify-center mx-auto shadow-lg shadow-sky-600/30">
             <Pill className="w-8 h-8" />

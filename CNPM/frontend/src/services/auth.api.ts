@@ -1,79 +1,79 @@
 import { apiClient } from './apiClient';
 import { User } from '@/types';
-import { mockUser } from './mockData';
+import { LoginRequest, RegisterRequest, AuthResponse, TokenResponse, RefreshTokenRequest } from '@/types/api';
+import { mockDelay, useMockApi } from './serviceMode';
+import { mockUsers } from './mockFixtures';
 
-export interface LoginParams {
-  email: string;
-  passwordHash?: string;
-  password?: string;
-}
-
-export interface RegisterParams {
-  email: string;
-  password?: string;
-  fullName: string;
-}
-
-export interface AuthResponse {
-  user: User;
-  token: string;
+export interface ForgotPasswordResponse {
+  message: string;
 }
 
 export const authApi = {
-  async login(params: LoginParams): Promise<AuthResponse> {
-    try {
-      const response = await apiClient.post<AuthResponse>('/auth/login', params);
-      return response.data;
-    } catch {
-      // Fallback mock response for demonstration
-      await new Promise((resolve) => setTimeout(resolve, 500));
+  async login(params: LoginRequest): Promise<AuthResponse> {
+    if (useMockApi) {
+      await mockDelay();
       return {
-        user: {
-          ...mockUser,
-          email: params.email || mockUser.email,
-        },
-        token: 'mock_jwt_token_medisafe_2026_xyz',
+        access_token: 'mock-access-token',
+        refresh_token: 'mock-refresh-token',
+        token_type: 'bearer',
+        expires_in: 86400,
+        user: mockUsers[0],
       };
     }
+
+    const response = await apiClient.post<AuthResponse>('/auth/login', params);
+    return response.data;
   },
 
-  async register(params: RegisterParams): Promise<AuthResponse> {
-    try {
-      const response = await apiClient.post<AuthResponse>('/auth/register', params);
-      return response.data;
-    } catch {
-      await new Promise((resolve) => setTimeout(resolve, 500));
+  async register(params: RegisterRequest): Promise<AuthResponse> {
+    if (useMockApi) {
+      await mockDelay();
       return {
-        user: {
-          ...mockUser,
-          email: params.email,
-          fullName: params.fullName,
-        },
-        token: 'mock_jwt_token_registered_2026',
+        access_token: 'mock-access-token',
+        refresh_token: 'mock-refresh-token',
+        token_type: 'bearer',
+        expires_in: 86400,
+        user: mockUsers[0],
       };
     }
+
+    const response = await apiClient.post<AuthResponse>('/auth/register', params);
+    return response.data;
   },
 
-  async forgotPassword(email: string): Promise<{ success: boolean; message: string }> {
-    try {
-      const response = await apiClient.post('/auth/forgot-password', { email });
-      return response.data;
-    } catch {
-      await new Promise((resolve) => setTimeout(resolve, 500));
+  async refreshToken(params: RefreshTokenRequest): Promise<TokenResponse> {
+    if (useMockApi) {
+      await mockDelay();
       return {
-        success: true,
-        message: 'Link đặt lại mật khẩu đã được gửi đến email của bạn.',
+        access_token: 'mock-refreshed-access-token',
+        token_type: 'bearer',
+        expires_in: 86400,
       };
     }
+
+    const response = await apiClient.post<TokenResponse>('/auth/refresh', params);
+    return response.data;
+  },
+
+  async forgotPassword(email: string): Promise<ForgotPasswordResponse> {
+    if (useMockApi) {
+      await mockDelay();
+      return {
+        message: `Đã gửi liên kết khôi phục mật khẩu tới ${email}.`,
+      };
+    }
+
+    const response = await apiClient.post<ForgotPasswordResponse>('/auth/forgot-password', { email });
+    return response.data;
   },
 
   async getProfile(): Promise<User> {
-    try {
-      const response = await apiClient.get<User>('/auth/me');
-      return response.data;
-    } catch {
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      return mockUser;
+    if (useMockApi) {
+      await mockDelay();
+      return mockUsers[0];
     }
+
+    const response = await apiClient.get<User>('/auth/me');
+    return response.data;
   },
 };

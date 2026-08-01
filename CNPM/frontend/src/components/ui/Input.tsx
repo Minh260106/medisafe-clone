@@ -13,6 +13,9 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 export const Input = forwardRef<HTMLInputElement, InputProps>(
   ({ label, error, helperText, leftIcon, rightIcon, className, id, ...props }, ref) => {
     const inputId = id || props.name;
+    const helperId = helperText ? `${inputId}-helper` : undefined;
+    const errorId = error ? `${inputId}-error` : undefined;
+    const describedBy = [errorId, helperId].filter(Boolean).join(' ') || undefined;
 
     return (
       <div className="w-full space-y-1.5 text-left">
@@ -30,6 +33,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           <input
             id={inputId}
             ref={ref}
+            aria-invalid={!!error}
+            aria-describedby={describedBy}
             className={twMerge(
               clsx(
                 'w-full rounded-xl border bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-4 py-2.5 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-sky-500/40 disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-900',
@@ -46,9 +51,13 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           {rightIcon && <div className="absolute right-3.5 text-slate-400 flex items-center justify-center">{rightIcon}</div>}
         </div>
         {error ? (
-          <p className="text-xs text-rose-500 font-medium">{error}</p>
+          <p id={errorId} className="text-xs text-rose-500 font-medium">
+            {error}
+          </p>
         ) : helperText ? (
-          <p className="text-xs text-slate-500 dark:text-slate-400">{helperText}</p>
+          <p id={helperId} className="text-xs text-slate-500 dark:text-slate-400">
+            {helperText}
+          </p>
         ) : null}
       </div>
     );

@@ -1,32 +1,54 @@
-import { AppNotification, ApiResponse } from '@/types';
-import { initialMockNotifications } from './mockData';
-
-let mockNotifications = [...initialMockNotifications];
+import { apiClient } from './apiClient';
+import { NotificationResponse } from '@/types/api';
+import { mockDelay, useMockApi } from './serviceMode';
+import { mockNotifications } from './mockFixtures';
 
 export const notificationApi = {
-  getNotifications: async (): Promise<ApiResponse<AppNotification[]>> => {
-    await new Promise((res) => setTimeout(res, 200));
-    return { data: [...mockNotifications], success: true };
-  },
-
-  markAsRead: async (id: string): Promise<ApiResponse<AppNotification>> => {
-    await new Promise((res) => setTimeout(res, 150));
-    const index = mockNotifications.findIndex((n) => n.id === id);
-    if (index !== -1) {
-      mockNotifications[index] = { ...mockNotifications[index], isRead: true };
+  async getNotifications(): Promise<NotificationResponse[]> {
+    if (useMockApi) {
+      await mockDelay();
+      return [...mockNotifications];
     }
-    return { data: mockNotifications[index], success: true };
+
+    const response = await apiClient.get<NotificationResponse[]>('/notifications');
+    return response.data;
   },
 
-  markAllAsRead: async (): Promise<ApiResponse<boolean>> => {
-    await new Promise((res) => setTimeout(res, 200));
-    mockNotifications = mockNotifications.map((n) => ({ ...n, isRead: true }));
-    return { data: true, success: true };
+  async markAsRead(id: string): Promise<NotificationResponse> {
+    if (useMockApi) {
+      await mockDelay();
+      const notif = mockNotifications.find((n) => n.id === id);
+      if (!notif) throw new Error('Thông báo không tồn tại');
+      notif.is_read = true;
+      return { ...notif };
+    }
+
+    const response = await apiClient.put<NotificationResponse>(`/notifications/${id}/read`);
+    return response.data;
   },
 
-  deleteNotification: async (id: string): Promise<ApiResponse<boolean>> => {
-    await new Promise((res) => setTimeout(res, 150));
-    mockNotifications = mockNotifications.filter((n) => n.id !== id);
-    return { data: true, success: true };
+  async markAllAsRead(): Promise<{ success: boolean }> {
+    if (useMockApi) {
+      await mockDelay();
+      mockNotifications.forEach((n) => {
+        n.is_read = true;
+      });
+      return { success: true };
+    }
+
+    const response = await apiClient.put<{ success: boolean }>('/notifications/read-all');
+    return response.data;
+  },
+
+  async deleteNotification(id: string): Promise<{ success: boolean }> {
+    if (useMockApi) {
+      await mockDelay();
+      const idx = mockNotifications.findIndex((n) => n.id === id);
+      if (idx !== -1) mockNotifications.splice(idx, 1);
+      return { success: true };
+    }
+
+    await apiClient.delete(`/notifications/${id}`);
+    return { success: true };
   },
 };

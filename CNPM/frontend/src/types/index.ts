@@ -1,165 +1,53 @@
 export interface User {
-  id: string;
+  id: number;
+  username: string;
   email: string;
-  fullName: string;
-  avatarUrl?: string;
-  heightCm?: number;
-  weightKg?: number;
-  allergies?: string[];
-  emergencyContactName?: string;
-  emergencyContactPhone?: string;
-  createdAt: string;
-}
-
-export type PillShape = 'capsule' | 'round' | 'oval' | 'square' | 'liquid' | 'injection';
-export type DosageStatus = 'taken' | 'skipped' | 'pending' | 'snoozed';
-
-export interface DDIInteraction {
-  id: string;
-  drugA: string;
-  drugB: string;
-  severity: 'critical' | 'warning' | 'info';
-  title: string;
-  description: string;
-  recommendation: string;
-  detectedAt?: string;
-}
-
-export interface VitalLog {
-  id: string;
-  systolic?: number;
-  diastolic?: number;
-  heartRate?: number;
-  bloodGlucose?: number;
-  glucoseType?: 'fasting' | 'postprandial' | 'random';
-  recordedAt: string;
-  status: 'normal' | 'elevated' | 'high_stage1' | 'high_stage2' | 'critical';
-  notes?: string;
-}
-
-export interface PRNMedication {
-  id: string;
-  name: string;
-  dosage: number;
-  unit: string;
-  shape: PillShape;
-  color: string;
-  indication: string; // e.g. "Cường độ đau > 7" or "Sốt cao trên 38.5°C"
-  minHoursBetweenDoses: number;
-  maxDosesPerDay: number;
-  takenTodayCount: number;
-  lastTakenAt?: string;
-  stockQuantity: number;
-  unitPrice?: number;
-}
-
-export interface TaperingScheduleStep {
-  dayNumber: number;
-  date: string;
-  dosage: number;
-  unit: string;
-  status: 'completed' | 'current' | 'upcoming';
-  notes?: string;
-}
-
-export interface TaperingMedication {
-  id: string;
-  medicationName: string;
-  totalDays: number;
-  currentDay: number;
-  steps: TaperingScheduleStep[];
+  role: string;
+  is_active: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface Medication {
-  id: string;
-  userId: string;
+  id: number;
+  user_id?: number | null;
   name: string;
-  description?: string;
-  dosage: number;
-  unit: string;
-  shape: PillShape;
-  color: string;
-  stockQuantity: number;
-  lowStockThreshold: number;
-  frequencyTimesPerDay: number;
-  reminderTimes: string[]; // e.g. ["08:00", "20:00"]
-  startDate: string;
-  endDate?: string;
-  instructions?: string;
-  isPRN?: boolean;
-  isTapering?: boolean;
-  taperingInfo?: string;
-  ddiWarnings?: DDIInteraction[];
-  createdAt: string;
-  updatedAt: string;
+  form: string;
+  dosage: string;
+  stock: number;
+  created_at: string;
+  updated_at: string;
 }
 
-export interface DosageScheduleItem {
-  id: string;
-  medicationId: string;
-  medicationName: string;
-  dosage: number;
-  unit: string;
-  shape: PillShape;
-  color: string;
-  scheduledTime: string; // "HH:mm"
-  scheduledDate: string; // "YYYY-MM-DD"
-  status: DosageStatus;
-  takenAt?: string;
-  notes?: string;
-  isPRN?: boolean;
-  isTapering?: boolean;
-  taperingDay?: number;
-  instructions?: string;
+export interface Schedule {
+  id: number;
+  user_id?: number | null;
+  medication_id: number;
+  frequency: string;
+  time_to_take: string;
+  created_at: string;
+  updated_at: string;
 }
 
-export interface AdherenceStats {
-  adherenceRate: number; // Percentage 0 - 100
-  totalScheduled: number;
-  totalTaken: number;
-  totalSkipped: number;
-  totalPending: number;
-  streakDays: number;
-  weeklyTrend: {
-    day: string;
-    taken: number;
-    skipped: number;
-    scheduled: number;
-  }[];
+export type IntakeStatus = 'Taken' | 'Skipped' | 'Snoozed';
+
+export interface IntakeLog {
+  id: number;
+  user_id?: number | null;
+  schedule_id: number;
+  status: IntakeStatus;
+  timestamp: string;
 }
 
-export interface AdherenceHeatmapDay {
-  date: string; // YYYY-MM-DD
-  count: number;
-  status: 'perfect' | 'partial' | 'missed' | 'empty';
-}
-
-export interface Appointment {
-  id: string;
-  doctorName: string;
-  specialty: string;
-  clinicName: string;
-  address?: string;
-  appointmentDate: string; // YYYY-MM-DD
-  appointmentTime: string; // HH:mm
-  status: 'upcoming' | 'completed' | 'cancelled';
-  notes?: string;
-  reminderMinutesBefore?: number;
-}
-
-export interface AppNotification {
-  id: string;
-  title: string;
-  message: string;
-  type: 'reminder' | 'appointment' | 'system' | 'warning';
-  isRead: boolean;
-  createdAt: string;
-  linkUrl?: string;
+export interface ComplianceStats {
+  taken_percentage: number;
+  skipped_percentage: number;
 }
 
 export interface ApiErrorResponse {
   message: string;
   status: number;
+  detail?: string;
   errors?: Record<string, string[]>;
 }
 

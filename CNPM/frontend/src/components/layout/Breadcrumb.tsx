@@ -10,6 +10,7 @@ const labelMap: Record<string, string> = {
   dashboard: 'Tổng quan',
   medications: 'Danh mục thuốc',
   schedule: 'Lịch & Nhắc nhở',
+  reminder: 'Nhắc nhở hôm nay',
   history: 'Lịch sử uống thuốc',
   statistics: 'Thống kê tuân thủ',
   profile: 'Hồ sơ cá nhân',

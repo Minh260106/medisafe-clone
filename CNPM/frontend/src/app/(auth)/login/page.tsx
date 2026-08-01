@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Pill, Mail, Lock, AlertCircle, ShieldCheck, Heart, Clock } from 'lucide-react';
+import { Pill, Mail, Lock, AlertCircle, ShieldCheck, Heart, Clock, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { authApi } from '@/services/auth.api';
@@ -14,7 +14,7 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { ROUTES } from '@/constants/routes';
 
 const loginSchema = z.object({
-  email: z.string().min(1, 'Vui lòng nhập Email').email('Email không hợp lệ'),
+  username: z.string().min(1, 'Vui lòng nhập username hoặc email'),
   password: z.string().min(8, 'Mật khẩu phải chứa ít nhất 8 ký tự'),
 });
 
@@ -33,7 +33,7 @@ export default function LoginPage() {
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: 'nguyenvana@medisafe.vn',
+      username: 'nguyenvana',
       password: 'password123',
     },
   });
@@ -42,11 +42,15 @@ export default function LoginPage() {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const result = await authApi.login({ email: data.email, password: data.password });
-      setAuth(result.user, result.token);
+      const result = await authApi.login({ username: data.username, password: data.password });
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('medisafe_token', result.access_token);
+      }
+      const profile = await authApi.getProfile();
+      setAuth(profile, result.access_token);
       router.push(ROUTES.DASHBOARD.OVERVIEW);
-    } catch {
-      setErrorMessage('Đăng nhập thất bại. Vui lòng kiểm tra lại email và mật khẩu.');
+    } catch (error) {
+      setErrorMessage((error as { message?: string })?.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.');
     } finally {
       setLoading(false);
     }
@@ -55,8 +59,19 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex bg-slate-50 dark:bg-slate-900">
       {/* Left Column: Form Area */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12">
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 relative">
         <div className="w-full max-w-md bg-white dark:bg-slate-800 rounded-3xl p-8 shadow-xl border border-slate-200/80 dark:border-slate-700/80 space-y-6">
+          {/* Back to Home Button */}
+          <div>
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-750 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950/60 dark:hover:text-blue-400 transition-all"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Quay lại trang chủ</span>
+            </Link>
+          </div>
+
           <div className="space-y-2">
             <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-600/30">
               <Pill className="w-7 h-7" />
@@ -76,12 +91,12 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <Input
-              label="Địa chỉ Email"
-              type="email"
-              placeholder="example@medisafe.vn"
+              label="Username hoặc Email"
+              type="text"
+              placeholder="nguyenvana hoặc nguyenvana@medisafe.vn"
               leftIcon={<Mail className="w-4 h-4 text-slate-400" />}
-              error={errors.email?.message}
-              {...register('email')}
+              error={errors.username?.message}
+              {...register('username')}
             />
 
             <Input
